@@ -1,0 +1,3 @@
+[submodule "after/ftplugin"]
+	path = after/ftplugin
+	url = https://github.com/anddam/android-javacomplete.git
