@@ -1684,10 +1684,10 @@ endfu
 
 " classpath								{{{2
 fu! javacomplete#AddClassPath(s)
-  if !isdirectory(a:s)
-    echoerr 'invalid classpath: ' . a:s
-    return
-  endif
+"  if !isdirectory(a:s)
+"    echoerr 'invalid classpath: ' . a:s
+"    return
+"  endif
 
   if !exists('s:classpath')
     let s:classpath = [a:s]
@@ -1754,24 +1754,40 @@ fu! s:GetJavaCompleteClassPath()
     let has_class = 1
   endif
 
-  let classfile = globpath(&rtp, 'autoload/Reflection.class')
+  " search for Reflection.class in runtimepath, this fits well with pathogen
+  " since Reflection.class can be put in .vim/bundle/javacomplete/java
+  let classfile = globpath(&rtp, 'java/Reflection.class')
   if classfile == ''
-    let classfile = globpath($HOME, 'Reflection.class')
+    " if not in java/ subdir let's try plain runtimepath
+    let classfile = globpath(&rtp, 'Reflection.class')
   endif
   if classfile == ''
-    " try to find source file and compile to $HOME
-    let srcfile = globpath(&rtp, 'autoload/Reflection.java')
+    " if not in rtp fall back to ~/.vim/ - pretty safe to assume it exists
+    let classfile = globpath($HOME . '/.vim/', 'Reflection.class')
+  endif
+  if classfile == ''
+    " we couldn't find a compiled Reflection class, let's try to build one
+    let srcfile = globpath(&rtp, 'java/Reflection.java')
+    let dstPath = fnamemodify(srcfile, ':h') . '/'
+    echom "dstPath:". dstPath
     if srcfile != ''
-      exe '!' . javacomplete#GetCompiler() . ' -d "' . $HOME . '" "' . srcfile . '"'
-      let classfile = globpath($HOME, 'Reflection.class')
+      " this is actually wrong, we should check that dstPath is writeable by
+      " current user
+      if dstPath != ''
+        " put compiled class in same directory of source file
+        exe '!' . javacomplete#GetCompiler() . ' -d "' . dstPath . '" "' . srcfile . '"' . ' 2>&1 1>/dev/null'
+      else
+        " defaults output directory to ~/.vim/
+        exe '!' . javacomplete#GetCompiler() . ' -d "' . $HOME . '/.vim/' . '" "' . srcfile . '"' . ' 2>&1 1>/dev/null'
+      endif
+      let classfile = globpath($HOME . '/.vim/', 'Reflection.class')
       if classfile == ''
         echo srcfile . ' can not be compiled. Please check it'
       endif
     else
-      echo 'No Reflection.class found in $HOME or any autoload directory of the &rtp. And no Reflection.java found in any autoload directory of the &rtp to compile.'
+      echo 'No Reflection.class found in any java/ subdirectory of the &rtp or $HOME/.vim/ and no Reflection.java found in any java/ subdirectory of the &rtp to compile.'
     endif
   endif
-
   " add *.class to wildignore if it existed before
   if has_class == 1
     set wildignore+=*.class
